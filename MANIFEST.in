@@ -1,7 +1,13 @@
 include README.md
 include LICENSE
-include DESIGN.md
-include DECISIONS.md
+include zensical.toml
+include docs/index.md
+include docs/user/index.md
+include docs/user/quickstart.md
+include docs/developer/index.md
+include docs/developer/architecture.md
+include docs/developer/design.md
+include docs/developer/decisions.md
 recursive-include src/pgjobq *.sql
 recursive-include src/pgjobq py.typed
 recursive-include examples *.py *.sql

@@ -32,6 +32,9 @@ dev = [
     "mypy>=1.0.0",
     "ruff>=0.1.0",
 ]
+docs = [
+    "zensical>=0.0.23",
+]
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

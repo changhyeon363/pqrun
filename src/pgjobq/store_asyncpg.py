@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncIterator, Optional
+from urllib.parse import urlsplit, urlunsplit
 
 import asyncpg
 
@@ -25,6 +26,8 @@ def _jsonb_param(value: dict[str, Any] | None) -> str | None:
     """Encode a Python dict to a JSON string for jsonb query params."""
     if value is None:
         return None
+    if not isinstance(value, dict):
+        raise ValueError("jsonb fields must be JSON objects (dict)")
     return json.dumps(value)
 
 
@@ -38,7 +41,21 @@ def _jsonb_dict(value: Any) -> dict[str, Any] | None:
         decoded = json.loads(value)
         if isinstance(decoded, dict):
             return decoded
-    raise TypeError(f"Expected json object for jsonb field, got {type(value).__name__}")
+    raise TypeError(f"Expected JSON object for jsonb field, got {type(value).__name__}")
+
+
+def _mask_dsn(dsn: str) -> str:
+    """Mask password in DSN before logging."""
+    parsed = urlsplit(dsn)
+    if "@" not in parsed.netloc:
+        return dsn
+    userinfo, hostinfo = parsed.netloc.rsplit("@", 1)
+    if ":" in userinfo:
+        user, _ = userinfo.split(":", 1)
+        masked_netloc = f"{user}:***@{hostinfo}"
+    else:
+        masked_netloc = parsed.netloc
+    return urlunsplit((parsed.scheme, masked_netloc, parsed.path, parsed.query, parsed.fragment))
 
 
 @dataclass
@@ -67,6 +84,11 @@ class PgJobStore:
     pool: Optional[asyncpg.Pool] = None
     _owns_pool: bool = False
 
+    def _require_pool(self) -> asyncpg.Pool:
+        if self.pool is None:
+            raise RuntimeError("call start() first")
+        return self.pool
+
     async def start(self) -> None:
         """
         Initialize the connection pool if needed.
@@ -81,7 +103,7 @@ class PgJobStore:
         if not self.dsn:
             raise ValueError("PgJobStore requires either dsn or pool")
 
-        logger.info(f"Creating connection pool for {self.dsn}")
+        logger.info(f"Creating connection pool for {_mask_dsn(self.dsn)}")
         self.pool = await asyncpg.create_pool(dsn=self.dsn, min_size=1, max_size=10)
         self._owns_pool = True
 
@@ -107,8 +129,8 @@ class PgJobStore:
             async with store.connection() as conn:
                 await conn.execute("SELECT ...")
         """
-        assert self.pool is not None, "call start() first"
-        async with self.pool.acquire() as conn:
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
             yield conn
 
     @asynccontextmanager
@@ -122,8 +144,8 @@ class PgJobStore:
                 await conn.execute("INSERT ...")
             # Auto-commit on success, rollback on exception
         """
-        assert self.pool is not None, "call start() first"
-        async with self.pool.acquire() as conn:
+        pool = self._require_pool()
+        async with pool.acquire() as conn:
             async with conn.transaction():
                 yield conn
 
@@ -159,7 +181,7 @@ class PgJobStore:
             If dedupe_key conflicts with an active job, the existing job's
             updated_at is touched and its ID is returned.
         """
-        assert self.pool is not None, "call start() first"
+        pool = self._require_pool()
         ra = run_after or _utcnow()
 
         sql = """
@@ -170,7 +192,7 @@ class PgJobStore:
         DO UPDATE SET updated_at = now()
         RETURNING id;
         """
-        async with self.pool.acquire() as conn:
+        async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 sql, job_type, _jsonb_param(payload), dedupe_key, ra, priority, max_attempts, timeout_seconds
             )
@@ -196,7 +218,7 @@ class PgJobStore:
             - Sets locked_at/locked_by
             - Clears finished_at/duration_ms from previous runs
         """
-        assert self.pool is not None, "call start() first"
+        pool = self._require_pool()
 
         sql = """
         WITH picked AS (
@@ -223,7 +245,7 @@ class PgJobStore:
           j.run_after, j.timeout_seconds, j.locked_at, j.locked_by, j.dedupe_key, j.last_error,
           j.finished_at, j.duration_ms, j.result, j.created_at, j.updated_at;
         """
-        async with self.pool.acquire() as conn:
+        async with pool.acquire() as conn:
             row = await conn.fetchrow(sql, worker_id)
             if not row:
                 return None
@@ -242,7 +264,7 @@ class PgJobStore:
             result: Optional handler return value (stored in jobs.result)
             duration_ms: Execution duration in milliseconds
         """
-        assert self.pool is not None, "call start() first"
+        pool = self._require_pool()
         sql = """
         UPDATE jobs
         SET status='DONE',
@@ -254,7 +276,7 @@ class PgJobStore:
             locked_by=NULL
         WHERE id=$1;
         """
-        async with self.pool.acquire() as conn:
+        async with pool.acquire() as conn:
             await conn.execute(sql, job_id, duration_ms, _jsonb_param(result))
             logger.info(f"Job {job_id} completed (duration={duration_ms}ms)")
 
@@ -284,7 +306,7 @@ class PgJobStore:
             duration_ms: Execution duration before error
             result: Optional partial result
         """
-        assert self.pool is not None, "call start() first"
+        pool = self._require_pool()
         delay = retry_after if retry_after is not None else timedelta(minutes=1)
 
         sql = """
@@ -318,7 +340,7 @@ class PgJobStore:
         WHERE id = $1
         RETURNING status, attempts, max_attempts;
         """
-        async with self.pool.acquire() as conn:
+        async with pool.acquire() as conn:
             row = await conn.fetchrow(sql, job_id, error, terminal, delay, duration_ms, _jsonb_param(result))
             if row:
                 logger.warning(
@@ -333,9 +355,9 @@ class PgJobStore:
         Args:
             job_id: Job to cancel
         """
-        assert self.pool is not None, "call start() first"
+        pool = self._require_pool()
         sql = "UPDATE jobs SET status='CANCELLED', finished_at=now(), updated_at=now() WHERE id=$1;"
-        async with self.pool.acquire() as conn:
+        async with pool.acquire() as conn:
             await conn.execute(sql, job_id)
             logger.info(f"Job {job_id} cancelled")
 
@@ -356,7 +378,7 @@ class PgJobStore:
         Returns:
             Number of jobs reaped
         """
-        assert self.pool is not None, "call start() first"
+        pool = self._require_pool()
         default_seconds = int(default_stale_after.total_seconds())
 
         sql = f"""
@@ -371,7 +393,7 @@ class PgJobStore:
           AND locked_at < now() - make_interval(secs => COALESCE(timeout_seconds, {default_seconds}))
         RETURNING id;
         """
-        async with self.pool.acquire() as conn:
+        async with pool.acquire() as conn:
             rows = await conn.fetch(sql)
             count = len(rows)
             if count > 0:

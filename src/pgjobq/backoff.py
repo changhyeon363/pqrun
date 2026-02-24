@@ -76,3 +76,25 @@ class IdlePollPolicy:
         if empty_streak == 2:
             return min(5.0, self.max_seconds)
         return self.max_seconds
+
+
+@dataclass(frozen=True)
+class LoopErrorPolicy:
+    """
+    Retry policy for worker loop-level infrastructure errors.
+
+    This controls sleep after unexpected errors outside handler logic
+    (e.g., pickup/mark_* DB failures). Default is immediate retry.
+    """
+
+    def next_sleep(self, consecutive_errors: int) -> float:
+        """
+        Calculate sleep before next loop iteration after infra error.
+
+        Args:
+            consecutive_errors: Number of consecutive loop-level errors
+
+        Returns:
+            Sleep duration in seconds
+        """
+        return 0.0

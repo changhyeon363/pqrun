@@ -32,7 +32,7 @@ Basic Usage:
         await store.enqueue("summarize", {"conversation_id": 456})
 """
 
-from .backoff import BackoffPolicy, IdlePollPolicy
+from .backoff import BackoffPolicy, IdlePollPolicy, LoopErrorPolicy
 from .models import Handler, Handlers, Job, JobContext, JobStatus
 from .store_asyncpg import PgJobStore
 from .worker import Worker
@@ -52,4 +52,5 @@ __all__ = [
     # Policies
     "BackoffPolicy",
     "IdlePollPolicy",
+    "LoopErrorPolicy",
 ]

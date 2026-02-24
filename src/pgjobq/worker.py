@@ -12,11 +12,15 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Optional
 
-from .backoff import BackoffPolicy, IdlePollPolicy
+from .backoff import BackoffPolicy, IdlePollPolicy, LoopErrorPolicy
 from .models import Handlers, JobContext
 from .store_asyncpg import PgJobStore
 
 logger = logging.getLogger("pgjobq.worker")
+
+
+class TerminalDispatchError(Exception):
+    """Raised when dispatch already handled a terminal failure."""
 
 
 @dataclass
@@ -58,6 +62,7 @@ class Worker:
 
     idle_policy: IdlePollPolicy = field(default_factory=IdlePollPolicy)
     backoff: BackoffPolicy = field(default_factory=BackoffPolicy)
+    loop_error_policy: LoopErrorPolicy = field(default_factory=LoopErrorPolicy)
 
     reap_stale_every_seconds: int = 60
     default_stale_after: timedelta = field(default_factory=lambda: timedelta(minutes=20))
@@ -77,19 +82,32 @@ class Worker:
 
         env_conc = os.getenv("WORKER_CONCURRENCY")
         if env_conc is not None:
-            self.concurrency = max(1, int(env_conc))
-            logger.info(f"WORKER_CONCURRENCY={self.concurrency} (from env)")
+            try:
+                self.concurrency = max(1, int(env_conc))
+                logger.info(f"WORKER_CONCURRENCY={self.concurrency} (from env)")
+            except (TypeError, ValueError):
+                logger.warning(f"Invalid WORKER_CONCURRENCY={env_conc!r}; using {self.concurrency}")
 
         env_reap = os.getenv("WORKER_REAP_INTERVAL")
         if env_reap is not None:
-            self.reap_stale_every_seconds = max(1, int(env_reap))
-            logger.info(f"WORKER_REAP_INTERVAL={self.reap_stale_every_seconds} (from env)")
+            try:
+                self.reap_stale_every_seconds = max(1, int(env_reap))
+                logger.info(f"WORKER_REAP_INTERVAL={self.reap_stale_every_seconds} (from env)")
+            except (TypeError, ValueError):
+                logger.warning(f"Invalid WORKER_REAP_INTERVAL={env_reap!r}; using {self.reap_stale_every_seconds}")
 
         env_stale = os.getenv("WORKER_STALE_TIMEOUT")
         if env_stale is not None:
-            stale_seconds = max(1, int(env_stale))
-            self.default_stale_after = timedelta(seconds=stale_seconds)
-            logger.info(f"WORKER_STALE_TIMEOUT={stale_seconds}s (from env)")
+            try:
+                stale_seconds = max(1, int(env_stale))
+                self.default_stale_after = timedelta(seconds=stale_seconds)
+                logger.info(f"WORKER_STALE_TIMEOUT={stale_seconds}s (from env)")
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Invalid WORKER_STALE_TIMEOUT=%r; using %ss",
+                    env_stale,
+                    int(self.default_stale_after.total_seconds()),
+                )
 
     async def lifespan(self, app):
         """
@@ -172,36 +190,53 @@ class Worker:
         4. Repeat until stop_event is set
         """
         empty_streak = 0
+        consecutive_loop_errors = 0
         try:
             while not stop_event.is_set():
-                job = await self.store.pickup(worker_id=self.worker_id or "worker")
-
-                if job is None:
-                    empty_streak += 1
-                    sleep_duration = self.idle_policy.next_sleep(empty_streak)
-                    await asyncio.sleep(sleep_duration)
-                    continue
-
-                # Job found, reset idle backoff
-                empty_streak = 0
-
-                # Execute and measure
-                started = time.perf_counter()
                 try:
-                    result = await self._dispatch(job)
-                    duration_ms = int((time.perf_counter() - started) * 1000)
-                    await self.store.mark_done(job.id, result=result, duration_ms=duration_ms)
-                except Exception as e:
-                    duration_ms = int((time.perf_counter() - started) * 1000)
-                    error_msg = traceback.format_exc()[:10000]  # Limit to 10KB
-                    delay = self.backoff.retry_delay(job.attempts)
-                    await self.store.mark_error(
-                        job.id, error=error_msg, retry_after=delay, terminal=False, duration_ms=duration_ms
-                    )
-                    logger.error(f"Job {job.id} failed (attempt {job.attempts}): {e}")
+                    job = await self.store.pickup(worker_id=self.worker_id or "worker")
 
-                # Small yield to avoid tight loop
-                await asyncio.sleep(0)
+                    if job is None:
+                        empty_streak += 1
+                        sleep_duration = self.idle_policy.next_sleep(empty_streak)
+                        await asyncio.sleep(sleep_duration)
+                        consecutive_loop_errors = 0
+                        continue
+
+                    # Job found, reset idle backoff
+                    empty_streak = 0
+
+                    # Execute and measure
+                    started = time.perf_counter()
+                    try:
+                        result = await self._dispatch(job)
+                        duration_ms = int((time.perf_counter() - started) * 1000)
+                        await self.store.mark_done(job.id, result=result, duration_ms=duration_ms)
+                    except TerminalDispatchError as e:
+                        logger.error(f"Job {job.id} terminal dispatch failure: {e}")
+                    except Exception as e:
+                        duration_ms = int((time.perf_counter() - started) * 1000)
+                        error_msg = traceback.format_exc()[:10000]  # Limit to 10KB
+                        delay = self.backoff.retry_delay(job.attempts)
+                        await self.store.mark_error(
+                            job.id, error=error_msg, retry_after=delay, terminal=False, duration_ms=duration_ms
+                        )
+                        logger.error(f"Job {job.id} failed (attempt {job.attempts}): {e}")
+
+                    consecutive_loop_errors = 0
+                    # Small yield to avoid tight loop
+                    await asyncio.sleep(0)
+                except Exception as e:
+                    consecutive_loop_errors += 1
+                    sleep_duration = max(0.0, self.loop_error_policy.next_sleep(consecutive_loop_errors))
+                    logger.error(
+                        "Worker loop infra error (consecutive=%s, retry_in=%.3fs): %s",
+                        consecutive_loop_errors,
+                        sleep_duration,
+                        e,
+                        exc_info=True,
+                    )
+                    await asyncio.sleep(sleep_duration)
 
         except asyncio.CancelledError:
             logger.debug("Worker loop cancelled")
@@ -225,7 +260,7 @@ class Worker:
             error_msg = f"No handler registered for job_type={job.job_type}"
             logger.error(error_msg)
             await self.store.mark_error(job.id, error=error_msg, terminal=True)
-            return None
+            raise TerminalDispatchError(error_msg)
 
         ctx = JobContext(job=job, store=self.store, worker_id=self.worker_id or "worker")
         logger.info(f"Executing job {job.id} type={job.job_type} (attempt {job.attempts})")
