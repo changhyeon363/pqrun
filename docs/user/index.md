@@ -7,3 +7,4 @@ icon: lucide/user
 If you are integrating `pgjobq` into an app, start here.
 
 - [Quick Start](quickstart.md)
+- [Configuration & Customization](configuration.md)

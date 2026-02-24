@@ -8,6 +8,7 @@ nav = [
   { "Library User" = [
     # "user/index.md",
     "user/quickstart.md",
+    "user/configuration.md",
   ] },
   { "Developer" = [
     # "developer/index.md",
