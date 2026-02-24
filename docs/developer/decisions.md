@@ -1,3 +1,7 @@
+---
+icon: lucide/list-checks
+---
+
 # Implementation Decisions
 
 구현 시작 전에 결정이 필요한 사항들을 정리합니다.

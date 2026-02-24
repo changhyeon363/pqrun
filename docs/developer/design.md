@@ -1,4 +1,8 @@
-# pgjobq Design Document
+---
+icon: lucide/pen-tool
+---
+
+# Design Document
 
 **Version:** 0.1.0  
 **Date:** 2026-02-24  
@@ -618,6 +622,7 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS new_field text;
 ```
 
 **원칙**:
+
 - SQL 파일 기반 (ORM migration 비의존)
 - Backward-compatible 변경 우선
 - 프로덕션 적용 전 staging 검증
@@ -682,8 +687,3 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS new_field text;
 - [PostgreSQL SKIP LOCKED](https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE)
 - [FastAPI Lifespan Events](https://fastapi.tiangolo.com/advanced/events/)
 - [asyncpg Documentation](https://magicstack.github.io/asyncpg/current/)
-
----
-
-**Document Status**: Ready for implementation
-**Next Steps**: Create package structure, implement core modules

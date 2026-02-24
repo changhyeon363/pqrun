@@ -1,4 +1,8 @@
-# pgjobq 아키텍처 및 데이터 흐름
+---
+icon: lucide/network
+---
+
+# Architecture & Data Flow
 
 PostgreSQL 하나만으로 동작하는 **async Python 잡 큐** 라이브러리.
 FastAPI `lifespan`에 붙여 쓰는 것을 주요 패턴으로 설계되었으며, 별도의 Redis/RabbitMQ 등 추가 인프라가 필요 없다.
@@ -25,48 +29,44 @@ src/pgjobq/
 
 ```mermaid
 graph LR
-    APP["FastAPI App<br/>(lifespan)"]
-    W["Worker<br/>worker.py"]
-    S["PgJobStore<br/>store_asyncpg.py"]
-    BP["BackoffPolicy<br/>IdlePollPolicy<br/>backoff.py"]
-    M["Job / JobContext<br/>models.py"]
-    DB[("PostgreSQL<br/>jobs 테이블<br/>ddl.sql")]
+    APP["FastAPI App"]
+    W["Worker"]
+    S["PgJobStore"]
+    BP["Backoff<br/>Policies"]
+    M["Job / JobContext"]
+    DB[("PostgreSQL")]
 
-    APP -->|lifespan 연결| W
-    W -->|"pickup / mark_done<br/>mark_error / reap_stale"| S
-    W -->|retry delay 계산| BP
-    W -->|idle sleep 계산| BP
-    S -->|asyncpg pool| DB
-    S -->|Job 객체 반환| M
-    W -->|JobContext 생성| M
+    APP -->|lifespan| W
+    W -->|"pickup / mark_*<br/>reap_stale"| S
+    W -->|delay 계산| BP
+    S -->|asyncpg| DB
+    S -->|Job| M
+    W -->|JobContext| M
 ```
 
 ---
 
 ## 3. 잡 생명주기
 
-잡이 거치는 상태와 각 전이의 원인을 나타낸다.
-
 ```mermaid
 graph TD
-    NEW(["[생성]"])
-    READY(["READY<br/>대기 중"])
-    RUNNING(["RUNNING<br/>실행 중"])
-    DONE(["DONE<br/>완료 ✓"])
-    FAILED(["FAILED<br/>최종 실패 ✗"])
-    CANCELLED(["CANCELLED<br/>취소"])
-    END(["[종료]"])
+    NEW(["시작"])
+    READY(["READY"])
+    RUNNING(["RUNNING"])
+    DONE(["DONE ✓"])
+    FAILED(["FAILED ✗"])
+    CANCELLED(["CANCELLED"])
+    END(["종료"])
 
-    NEW      -->|"enqueue()"| READY
-    READY    -->|"pickup()<br/>SKIP LOCKED"| RUNNING
+    NEW     -->|enqueue| READY
+    READY   -->|pickup| RUNNING
 
-    RUNNING  -->|"mark_done()"| DONE
-    RUNNING  -->|"mark_error()<br/>attempts &lt; max_attempts<br/>run_after 딜레이 후 재시도"| READY
-    RUNNING  -->|"mark_error()<br/>attempts &gt;= max_attempts<br/>또는 terminal=True"| FAILED
-    RUNNING  -->|"reap_stale()<br/>타임아웃 초과 (워커 크래시)"| READY
-
-    READY    -->|"cancel()"| CANCELLED
-    RUNNING  -->|"cancel()"| CANCELLED
+    RUNNING -->|성공| DONE
+    RUNNING -->|"재시도 가능<br/>(attempts &lt; max)"| READY
+    RUNNING -->|"재시도 소진<br/>(attempts &gt;= max)"| FAILED
+    RUNNING -->|"타임아웃<br/>(reap_stale)"| READY
+    READY   -->|cancel| CANCELLED
+    RUNNING -->|cancel| CANCELLED
 
     DONE      --> END
     FAILED    --> END
@@ -77,50 +77,48 @@ graph TD
 
 ## 4. 잡 등록 (enqueue)
 
-Producer가 잡을 등록하는 흐름. dedupe_key가 있으면 중복 잡을 DB 레벨에서 방지한다.
+`dedupe_key`가 있으면 READY/RUNNING 중 중복 삽입을 DB 레벨에서 방지한다.
 
 ```mermaid
 sequenceDiagram
-    participant P as Producer (API Route)
+    participant P as Producer
     participant S as PgJobStore
     participant DB as PostgreSQL
 
     P->>S: enqueue(job_type, payload, dedupe_key?)
-    S->>DB: INSERT INTO jobs<br/>ON CONFLICT (dedupe_key) DO UPDATE SET updated_at=now()
-    DB-->>S: RETURNING id
+    S->>DB: INSERT ... ON CONFLICT DO UPDATE
+    DB-->>S: id
     S-->>P: job_id
 ```
 
 ---
 
-## 5. 잡 실행 (pickup → dispatch → complete)
-
-Worker가 잡을 가져와 핸들러를 실행하고 결과를 기록하는 흐름.
+## 5. 잡 실행 (pickup → handler → complete)
 
 ```mermaid
 sequenceDiagram
-    participant W as Worker._run_loop
+    participant W as Worker
     participant S as PgJobStore
     participant DB as PostgreSQL
     participant H as Handler
 
     W->>S: pickup(worker_id)
-    S->>DB: SELECT ... FOR UPDATE SKIP LOCKED<br/>UPDATE status=RUNNING, attempts+1
+    S->>DB: SELECT FOR UPDATE SKIP LOCKED<br/>→ UPDATE status=RUNNING
     DB-->>S: job row
     S-->>W: Job
 
     W->>H: handler(JobContext)
-    H-->>W: result dict (또는 exception)
+    H-->>W: result / exception
 
     alt 성공
-        W->>S: mark_done(job_id, result, duration_ms)
-        S->>DB: UPDATE status=DONE
-    else 에러 — 재시도 가능
-        W->>S: mark_error(job_id, error, retry_after)
-        S->>DB: UPDATE status=READY, run_after=now()+delay
-    else 에러 — 재시도 소진
-        W->>S: mark_error(job_id, error, terminal=True)
-        S->>DB: UPDATE status=FAILED
+        W->>S: mark_done(result)
+        S->>DB: status=DONE
+    else 재시도 가능
+        W->>S: mark_error(retry_after)
+        S->>DB: status=READY, run_after+=delay
+    else 재시도 소진
+        W->>S: mark_error(terminal=True)
+        S->>DB: status=FAILED
     end
 ```
 
@@ -128,45 +126,43 @@ sequenceDiagram
 
 ## 6. Worker 루프 구조
 
-Worker lifespan 시작/종료와 내부 루프 동작을 분리해서 나타낸다.
-
-### 6-1. Lifespan (시작 및 종료)
+### 6-1. Lifespan
 
 ```mermaid
 flowchart LR
-    A([lifespan 진입]) --> B["store.start()<br/>asyncpg Pool 생성"]
-    B --> C["_run_loop 태스크<br/>× concurrency 개 생성"]
-    B --> D["_reaper_loop 태스크<br/>× 1 생성"]
-    C --> Y(["yield<br/>앱 실행 중"])
+    A([시작]) --> B[store.start]
+    B --> C["_run_loop × N"]
+    B --> D["_reaper_loop × 1"]
+    C --> Y([앱 실행 중])
     D --> Y
-    Y --> E([stop_event.set])
-    E --> F["모든 태스크 cancel()<br/>최대 30초 대기"]
-    F --> G["store.close()"]
+    Y --> E([stop])
+    E --> F["태스크 cancel<br/>30s 대기"]
+    F --> G[store.close]
 ```
 
-### 6-2. _run_loop (잡 소비)
+### 6-2. _run_loop
 
 ```mermaid
 flowchart TD
-    S([시작]) --> P[pickup]
-    P --> Q{job 있음?}
-    Q -- No  --> I["empty_streak++<br/>IdlePollPolicy 대기<br/>1s → 2s → 5s → 10s"]
+    ST([시작]) --> P[pickup]
+    P --> Q{job?}
+    Q -- No  --> I["idle sleep<br/>1→2→5→10s"]
     I --> P
-    Q -- Yes --> R["empty_streak = 0<br/>_dispatch(job)"]
+    Q -- Yes --> R[_dispatch]
     R --> V{성공?}
     V -- Yes --> D[mark_done]
-    V -- No  --> E["mark_error<br/>BackoffPolicy로 retry_after 계산"]
+    V -- No  --> E["mark_error<br/>+ backoff delay"]
     D --> P
     E --> P
 ```
 
-### 6-3. _reaper_loop (좀비 잡 복구)
+### 6-3. _reaper_loop
 
 ```mermaid
 flowchart TD
-    S([시작]) --> W["sleep(reap_stale_every_seconds)<br/>기본 60초"]
-    W --> R["reap_stale()<br/>status=RUNNING이고<br/>locked_at 초과인 잡 탐색"]
-    R --> U["해당 잡 → status=READY 복귀<br/>(워커 크래시 복구)"]
+    ST([시작]) --> W["sleep 60s"]
+    W --> R["reap_stale()<br/>RUNNING + 타임아웃 초과"]
+    R --> U[→ READY 복귀]
     U --> W
 ```
 
@@ -174,26 +170,22 @@ flowchart TD
 
 ## 7. 멀티 워커 동시성 (SKIP LOCKED)
 
-여러 워커가 동시에 `pickup()`을 호출해도 각자 다른 잡을 가져가는 원리.
-
 ```mermaid
 sequenceDiagram
     participant W1 as Worker-1
     participant W2 as Worker-2
     participant DB as PostgreSQL
 
-    Note over DB: id=1 READY / id=2 READY / id=3 READY
+    Note over DB: id=1,2,3 READY
 
-    par 동시 호출
-        W1->>DB: SELECT FOR UPDATE SKIP LOCKED LIMIT 1
+    par
+        W1->>DB: pickup (SKIP LOCKED)
     and
-        W2->>DB: SELECT FOR UPDATE SKIP LOCKED LIMIT 1
+        W2->>DB: pickup (SKIP LOCKED)
     end
 
-    DB-->>W1: id=1 lock 획득 → RUNNING
-    DB-->>W2: id=1 SKIP → id=2 lock 획득 → RUNNING
-
-    Note over W1,W2: 각자 독립적으로 handler 실행
+    DB-->>W1: id=1 → RUNNING
+    DB-->>W2: id=2 → RUNNING (id=1 skip)
 
     W1->>DB: mark_done(id=1)
     W2->>DB: mark_done(id=2)

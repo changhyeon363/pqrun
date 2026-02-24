@@ -1,7 +1,7 @@
 [project]
 name = "pgjobq"
-version = "0.1.0"
-description = "PostgreSQL-backed job queue for async Python (FastAPI-friendly)"
+version = "0.0.1"
+description = "PostgreSQL-backed job queue for async Python"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}

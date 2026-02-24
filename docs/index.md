@@ -1,3 +1,7 @@
+---
+icon: lucide/book-open
+---
+
 # pgjobq
 
 PostgreSQL-backed job queue for async Python.

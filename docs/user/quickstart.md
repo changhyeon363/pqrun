@@ -1,3 +1,7 @@
+---
+icon: lucide/rocket
+---
+
 # Quick Start Guide
 
 Get up and running with pgjobq in 5 minutes.

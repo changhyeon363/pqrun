@@ -37,7 +37,7 @@ from .models import Handler, Handlers, Job, JobContext, JobStatus
 from .store_asyncpg import PgJobStore
 from .worker import Worker
 
-__version__ = "0.1.0"
+__version__ = "0.0.1"
 
 __all__ = [
     # Core
