@@ -292,10 +292,10 @@ UPDATE jobs SET status='READY', locked_at=NULL, locked_by=NULL WHERE status='RUN
 
 ## Learn More
 
-- **[Full Documentation](README.md)**: Complete feature guide
-- **[Design Document](DESIGN.md)**: Architecture and internals
-- **[Examples](examples/)**: More complex patterns
-- **[SQL Patterns](examples/enqueue_patterns.sql)**: Batch jobs, triggers, pg_cron
+- **[Full Documentation](../README.md)**: Complete feature guide
+- **[Design Document](../developer/design.md)**: Architecture and internals
+- **[Examples](../examples/)**: More complex patterns
+- **[SQL Patterns](../examples/enqueue_patterns.sql)**: Batch jobs, triggers, pg_cron
 
 ---
 

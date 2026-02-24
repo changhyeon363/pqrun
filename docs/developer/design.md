@@ -1,8 +1,8 @@
 # pgjobq Design Document
 
-**Version:** 0.1.0
-**Date:** 2026-02-24
-**Status:** Draft
+**Version:** 0.1.0  
+**Date:** 2026-02-24  
+**Status:** Final  
 
 ---
 
@@ -290,6 +290,11 @@ Attempt 4 → 2시간 후
 Attempt 5+ → 6시간 후
 ```
 
+#### Loop Infra Error Policy (LoopErrorPolicy)
+`pickup/mark_*` 같은 인프라 레벨 예외 시 worker loop 재시도 지연을 제어:
+- 기본: 즉시 재시도 (`0s`)
+- 커스텀 정책 주입 가능 (`Worker(..., loop_error_policy=...)`)
+
 #### Idle Poll Backoff (IdlePollPolicy)
 작업이 없을 때 점진적 sleep:
 ```
@@ -483,7 +488,7 @@ worker = Worker(
 
 ## 9. Implementation Decisions
 
-구현에 적용된 핵심 결정사항입니다. (상세 근거는 [DECISIONS.md](DECISIONS.md) 참조)
+구현에 적용된 핵심 결정사항입니다. (상세 근거는 [Decisions](decisions.md) 참조)
 
 ### 9.1 Connection Pool Management
 - **결정**: DSN 및 기존 Pool 모두 지원

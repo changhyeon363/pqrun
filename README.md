@@ -292,14 +292,24 @@ Current behavior:
 
 ```python
 from datetime import timedelta
-from pgjobq import BackoffPolicy
+from pgjobq import BackoffPolicy, LoopErrorPolicy
 
 class CustomBackoff(BackoffPolicy):
     def retry_delay(self, attempts: int) -> timedelta:
         # Custom exponential backoff
         return timedelta(seconds=2 ** attempts)
 
-worker = Worker(store=store, handlers=handlers, backoff=CustomBackoff())
+class CustomLoopErrorPolicy(LoopErrorPolicy):
+    def next_sleep(self, consecutive_errors: int) -> float:
+        # Infra error retry delay in worker loop (pickup/mark_* failures)
+        return min(0.5 * consecutive_errors, 5.0)
+
+worker = Worker(
+    store=store,
+    handlers=handlers,
+    backoff=CustomBackoff(),
+    loop_error_policy=CustomLoopErrorPolicy(),
+)
 ```
 
 ---
@@ -413,7 +423,7 @@ See [examples/cleanup.sql](examples/cleanup.sql) for more patterns.
 
 ## Design Decisions
 
-For detailed rationale, see [DESIGN.md](DESIGN.md) and [DECISIONS.md](DECISIONS.md).
+For detailed rationale, see [Design Document](docs/developer/design.md) and [Implementation Decisions](docs/developer/decisions.md).
 
 **Key choices**:
 - **asyncpg only** (no ORM): Maximum compatibility, minimal dependencies
@@ -444,7 +454,7 @@ For detailed rationale, see [DESIGN.md](DESIGN.md) and [DECISIONS.md](DECISIONS.
 
 ## Contributing
 
-Contributions are welcome! Please see [DESIGN.md](DESIGN.md) for architecture details.
+Contributions are welcome! Please see [Design Document](docs/developer/design.md) for architecture details.
 
 ### Development Setup
 
@@ -476,9 +486,22 @@ MIT
 
 ## Documentation
 
-- **[Design Document](DESIGN.md)**: Architecture, data model, core mechanisms
-- **[Implementation Decisions](DECISIONS.md)**: Design choices and rationale
+- **[Library User Docs](docs/user/index.md)**: Integration guides and quick start
+- **[Developer Docs](docs/developer/index.md)**: Architecture, design, and decisions
 - **[Examples](examples/)**: FastAPI integration, SQL patterns, cleanup strategies
+
+### Docs Site (Zensical)
+
+```bash
+# Install docs dependencies
+pip install -e ".[docs]" --upgrade
+
+# Run local docs server
+zensical serve
+
+# Build static docs
+zensical build
+```
 
 ---
 

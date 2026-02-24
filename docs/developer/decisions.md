@@ -17,6 +17,7 @@ PgJobStore(
 ```
 
 **결정 필요**:
+
 - [ ] **옵션 A**: Store가 자체 pool 생성/관리
   - 장점: 사용 간단, 독립적
   - 단점: 앱과 pool 분리 → connection 낭비 가능
