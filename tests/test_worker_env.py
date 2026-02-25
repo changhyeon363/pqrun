@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from pgjobq import Worker
-from pgjobq.store_asyncpg import PgJobStore
+from pqrun import Worker
+from pqrun.store_asyncpg import PgJobStore
 
 
 def test_worker_env_reap_interval_and_stale_timeout(monkeypatch):

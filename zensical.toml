@@ -1,5 +1,5 @@
 [project]
-site_name = "pgjobq"
+site_name = "pqrun"
 site_description = "PostgreSQL-backed job queue for async Python"
 docs_dir = "docs"
 

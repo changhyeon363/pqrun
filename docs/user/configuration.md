@@ -29,7 +29,7 @@ Notes:
 
 ```python
 from datetime import timedelta
-from pgjobq import Worker, BackoffPolicy, IdlePollPolicy, LoopErrorPolicy
+from pqrun import Worker, BackoffPolicy, IdlePollPolicy, LoopErrorPolicy
 
 worker = Worker(
     store=store,
@@ -71,7 +71,7 @@ worker = Worker(
 
 ```python
 from datetime import timedelta
-from pgjobq import BackoffPolicy
+from pqrun import BackoffPolicy
 
 class CustomBackoff(BackoffPolicy):
     def retry_delay(self, attempts: int) -> timedelta:
@@ -81,7 +81,7 @@ class CustomBackoff(BackoffPolicy):
 ### 3.2 Empty queue polling (`IdlePollPolicy`)
 
 ```python
-from pgjobq import IdlePollPolicy
+from pqrun import IdlePollPolicy
 
 class FastIdlePolicy(IdlePollPolicy):
     def next_sleep(self, empty_streak: int) -> float:
@@ -91,7 +91,7 @@ class FastIdlePolicy(IdlePollPolicy):
 ### 3.3 Infra loop errors (`LoopErrorPolicy`)
 
 ```python
-from pgjobq import LoopErrorPolicy
+from pqrun import LoopErrorPolicy
 
 class InfraLoopPolicy(LoopErrorPolicy):
     def next_sleep(self, consecutive_errors: int) -> float:

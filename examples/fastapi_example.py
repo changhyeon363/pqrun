@@ -1,5 +1,5 @@
 """
-FastAPI example with pgjobq integration.
+FastAPI example with pqrun integration.
 
 This example shows:
 - Basic setup with FastAPI
@@ -13,7 +13,7 @@ import os
 
 from fastapi import FastAPI
 
-from pgjobq import JobContext, PgJobStore, Worker
+from pqrun import JobContext, PgJobStore, Worker
 
 # ============================================================================
 # Configuration
@@ -149,7 +149,7 @@ worker = Worker(
 
 # Create FastAPI app
 app = FastAPI(
-    title="pgjobq Example",
+    title="pqrun Example",
     lifespan=worker.lifespan,  # This is the key integration!
 )
 
@@ -161,7 +161,7 @@ app = FastAPI(
 
 @app.get("/")
 async def root():
-    return {"message": "pgjobq FastAPI example"}
+    return {"message": "pqrun FastAPI example"}
 
 
 @app.post("/enqueue/summarize/{conversation_id}")
@@ -225,8 +225,8 @@ async def job_status():
 # ============================================================================
 
 # To run:
-#   1. Apply schema: psql $DATABASE_URL < src/pgjobq/ddl.sql
-#   2. Install deps: pip install fastapi uvicorn pgjobq
+#   1. Apply schema: psql $DATABASE_URL < src/pqrun/ddl.sql
+#   2. Install deps: pip install fastapi uvicorn pqrun
 #   3. Start server: uvicorn examples.fastapi_example:app --reload
 #   4. Test: curl -X POST http://localhost:8000/enqueue/summarize/123
 

@@ -1,6 +1,6 @@
 -- Enqueue Pattern Examples
 --
--- pgjobq supports multiple ways to enqueue jobs:
+-- pqrun supports multiple ways to enqueue jobs:
 -- 1. From application code (Python)
 -- 2. From SQL (pg_cron, triggers, etc.)
 -- 3. From job handlers (chaining)

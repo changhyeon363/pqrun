@@ -8,6 +8,6 @@ include docs/developer/index.md
 include docs/developer/architecture.md
 include docs/developer/design.md
 include docs/developer/decisions.md
-recursive-include src/pgjobq *.sql
-recursive-include src/pgjobq py.typed
+recursive-include src/pqrun *.sql
+recursive-include src/pqrun py.typed
 recursive-include examples *.py *.sql

@@ -1,5 +1,5 @@
 """
-Run pgjobq worker loops without serving FastAPI routes.
+Run pqrun worker loops without serving FastAPI routes.
 
 Usage:
     WORKER_ENABLED=true WORKER_CONCURRENCY=4 python -m examples.worker_only

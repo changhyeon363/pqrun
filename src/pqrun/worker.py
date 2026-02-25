@@ -16,7 +16,7 @@ from .backoff import BackoffPolicy, IdlePollPolicy, LoopErrorPolicy
 from .models import Handlers, JobContext
 from .store_asyncpg import PgJobStore
 
-logger = logging.getLogger("pgjobq.worker")
+logger = logging.getLogger("pqrun.worker")
 
 
 class TerminalDispatchError(Exception):

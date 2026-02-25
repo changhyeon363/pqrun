@@ -13,7 +13,7 @@ icon: lucide/pen-tool
 ## 1. Overview
 
 ### 1.1 Purpose
-`pgjobq`는 PostgreSQL을 백엔드로 사용하는 경량 비동기 작업 큐 라이브러리입니다. FastAPI와 같은 async Python 애플리케이션에서 백그라운드 작업을 안전하고 효율적으로 처리하기 위해 설계되었습니다.
+`pqrun`는 PostgreSQL을 백엔드로 사용하는 경량 비동기 작업 큐 라이브러리입니다. FastAPI와 같은 async Python 애플리케이션에서 백그라운드 작업을 안전하고 효율적으로 처리하기 위해 설계되었습니다.
 
 ### 1.2 Design Goals
 - **Simple**: ORM 비의존, 순수 SQL 기반으로 최소 의존성
@@ -45,7 +45,7 @@ icon: lucide/pen-tool
 └─────────┼─────────────────┼─────────────────┼───────────────┘
           │                 │                 │
           │         ┌───────▼─────────────────▼───────┐
-          │         │      Worker (pgjobq)            │
+          │         │      Worker (pqrun)            │
           │         │  - Poll loop                    │
           │         │  - Concurrency control          │
           │         │  - Handler dispatch             │
@@ -53,7 +53,7 @@ icon: lucide/pen-tool
           │         └───────┬─────────────────────────┘
           │                 │
           └─────────────────▼─────────────────────────┐
-                    │   PgJobStore (pgjobq)           │
+                    │   PgJobStore (pqrun)           │
                     │  - enqueue()                    │
                     │  - pickup() [SKIP LOCKED]       │
                     │  - mark_done/error()            │
@@ -529,8 +529,8 @@ async def handler(ctx: JobContext):
 - **이유**: 즉시 사용 가능, 표준 logging 모듈 활용
 ```python
 import logging
-logger = logging.getLogger("pgjobq")
-# 앱에서 설정 가능: logging.getLogger("pgjobq").setLevel(...)
+logger = logging.getLogger("pqrun")
+# 앱에서 설정 가능: logging.getLogger("pqrun").setLevel(...)
 ```
 
 ### 9.5 Shutdown Strategy
@@ -612,7 +612,7 @@ GRANT USAGE ON SEQUENCE jobs_id_seq TO app_user;
 ### 12.1 Initial Setup
 ```sql
 -- Run migrations/001_create_jobs.sql
-\i src/pgjobq/ddl.sql
+\i src/pqrun/ddl.sql
 ```
 
 ### 12.2 Future Schema Changes
@@ -649,7 +649,7 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS new_field text;
 
 ## 14. Comparison with Alternatives
 
-| Feature | pgjobq | Celery | TaskIQ | RQ |
+| Feature | pqrun | Celery | TaskIQ | RQ |
 |---------|--------|--------|--------|-----|
 | Backend | PostgreSQL | Redis/RabbitMQ | Redis/etc | Redis |
 | Async/Await | ✅ | ⚠️ (제한적) | ✅ | ❌ |
@@ -659,7 +659,7 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS new_field text;
 | Complexity | Low | High | Medium | Low |
 | 추가 인프라 | ❌ | ✅ | ✅ | ✅ |
 
-**pgjobq 선택 이유**:
+**pqrun 선택 이유**:
 - 이미 PostgreSQL 사용 중
 - 단순성 > 복잡한 기능
 - FastAPI async 네이티브 통합

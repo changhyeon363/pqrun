@@ -9,7 +9,7 @@ import pytest
 import pytest_asyncio
 
 ROOT = Path(__file__).resolve().parents[1]
-DDL_PATH = ROOT / "src" / "pgjobq" / "ddl.sql"
+DDL_PATH = ROOT / "src" / "pqrun" / "ddl.sql"
 
 
 def _load_database_url() -> str:
@@ -36,7 +36,7 @@ def database_url() -> str:
 
 @pytest.fixture(scope="session")
 def test_schema_name() -> str:
-    return f"pgjobq_test_{uuid.uuid4().hex[:8]}"
+    return f"pqrun_test_{uuid.uuid4().hex[:8]}"
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -51,15 +51,15 @@ async def test_db_context(database_url: str, test_schema_name: str) -> dict[str,
     await conn.execute(ddl_sql)
     await conn.close()
 
-    print(f"[pgjobq-test] created schema: {test_schema_name}")
-    print(f"[pgjobq-test] cleanup SQL: DROP SCHEMA {quoted_schema} CASCADE;")
+    print(f"[pqrun-test] created schema: {test_schema_name}")
+    print(f"[pqrun-test] cleanup SQL: DROP SCHEMA {quoted_schema} CASCADE;")
 
     return {"database_url": database_url, "schema": test_schema_name}
 
 
 @pytest_asyncio.fixture
 async def store_with_pool(test_db_context: dict[str, str]):
-    from pgjobq.store_asyncpg import PgJobStore
+    from pqrun.store_asyncpg import PgJobStore
 
     schema = test_db_context["schema"]
     quoted_schema = f'"{schema}"'

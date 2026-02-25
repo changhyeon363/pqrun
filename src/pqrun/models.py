@@ -1,4 +1,4 @@
-"""Core data models for pgjobq."""
+"""Core data models for pqrun."""
 
 from __future__ import annotations
 

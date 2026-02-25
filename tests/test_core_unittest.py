@@ -1,8 +1,8 @@
 import unittest
 from datetime import timedelta
 
-from pgjobq.backoff import BackoffPolicy, IdlePollPolicy
-from pgjobq.store_asyncpg import PgJobStore
+from pqrun.backoff import BackoffPolicy, IdlePollPolicy
+from pqrun.store_asyncpg import PgJobStore
 
 
 class _AcquireCM:

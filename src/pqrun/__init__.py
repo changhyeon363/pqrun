@@ -1,5 +1,5 @@
 """
-pgjobq - PostgreSQL-backed job queue for async Python.
+pqrun - PostgreSQL-backed job queue for async Python.
 
 A simple, reliable job queue built on PostgreSQL for FastAPI and async applications.
 
@@ -11,7 +11,7 @@ Key Features:
 - Flexible enqueue patterns (app, pg_cron, handler chains)
 
 Basic Usage:
-    from pgjobq import PgJobStore, Worker, JobContext
+    from pqrun import PgJobStore, Worker, JobContext
 
     # Define handler
     async def summarize(ctx: JobContext) -> dict:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from pgjobq.store_asyncpg import PgJobStore
+from pqrun.store_asyncpg import PgJobStore
 
 
 class _AcquireCM:

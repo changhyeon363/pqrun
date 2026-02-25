@@ -2,7 +2,7 @@
 icon: lucide/book-open
 ---
 
-# pgjobq
+# pqrun
 
 PostgreSQL-backed job queue for async Python.
 

@@ -1,4 +1,4 @@
--- pgjobq Database Schema
+-- pqrun Database Schema
 -- PostgreSQL job queue tables and indexes
 
 -- Job status enum

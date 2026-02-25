@@ -9,7 +9,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from pgjobq import IdlePollPolicy, JobContext, Worker
+from pqrun import IdlePollPolicy, JobContext, Worker
 
 
 @pytest.mark.integration

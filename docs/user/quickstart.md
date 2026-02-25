@@ -4,7 +4,7 @@ icon: lucide/rocket
 
 # Quick Start Guide
 
-Get up and running with pgjobq in 5 minutes.
+Get up and running with pqrun in 5 minutes.
 
 ---
 
@@ -19,7 +19,7 @@ Get up and running with pgjobq in 5 minutes.
 ## Step 1: Install
 
 ```bash
-pip install pgjobq
+pip install pqrun
 ```
 
 ---
@@ -30,10 +30,10 @@ Create the `jobs` table and indexes:
 
 ```bash
 # Using psql
-psql $DATABASE_URL < venv/lib/python*/site-packages/pgjobq/ddl.sql
+psql $DATABASE_URL < venv/lib/python*/site-packages/pqrun/ddl.sql
 
 # Or manually
-psql $DATABASE_URL -c "$(cat venv/lib/python*/site-packages/pgjobq/ddl.sql)"
+psql $DATABASE_URL -c "$(cat venv/lib/python*/site-packages/pqrun/ddl.sql)"
 ```
 
 Or in Python:
@@ -46,9 +46,9 @@ async def setup_db():
     conn = await asyncpg.connect("postgresql://user:pass@localhost/mydb")
 
     # Read DDL from package
-    import pgjobq
+    import pqrun
     from pathlib import Path
-    ddl_path = Path(pgjobq.__file__).parent / "ddl.sql"
+    ddl_path = Path(pqrun.__file__).parent / "ddl.sql"
     ddl = ddl_path.read_text()
 
     await conn.execute(ddl)
@@ -67,7 +67,7 @@ Create `main.py`:
 ```python
 import os
 from fastapi import FastAPI
-from pgjobq import PgJobStore, Worker, JobContext
+from pqrun import PgJobStore, Worker, JobContext
 
 # 1. Define your job handler
 async def send_email(ctx: JobContext) -> dict:
@@ -105,7 +105,7 @@ async def enqueue_email(user_id: int, template: str = "welcome"):
 
 @app.get("/")
 async def root():
-    return {"message": "pgjobq is running!"}
+    return {"message": "pqrun is running!"}
 ```
 
 ---
@@ -132,9 +132,9 @@ curl -X POST "http://localhost:8000/send-email?user_id=123&template=welcome"
 # {"job_id": 1, "status": "enqueued"}
 
 # Check the logs - you should see:
-# INFO:pgjobq.worker:Executing job 1 type=send_email (attempt 1)
+# INFO:pqrun.worker:Executing job 1 type=send_email (attempt 1)
 # Sending welcome email to user 123
-# INFO:pgjobq.store:Job 1 completed (duration=...ms)
+# INFO:pqrun.store:Job 1 completed (duration=...ms)
 ```
 
 ---

@@ -1,6 +1,6 @@
 -- Job Cleanup Examples
 --
--- pgjobq does not automatically delete completed jobs.
+-- pqrun does not automatically delete completed jobs.
 -- Use these patterns to implement cleanup based on your retention policy.
 
 -- ============================================================================
@@ -42,7 +42,7 @@ WHERE status = 'FAILED'
 
 
 -- ============================================================================
--- Pattern 4: Cleanup as a pgjobq job
+-- Pattern 4: Cleanup as a pqrun job
 -- ============================================================================
 -- Create a handler that runs cleanup, then enqueue it periodically
 

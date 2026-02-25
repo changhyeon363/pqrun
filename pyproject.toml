@@ -1,12 +1,12 @@
 [project]
-name = "pgjobq"
+name = "pqrun"
 version = "0.0.1"
 description = "PostgreSQL-backed job queue for async Python"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "pgjobq contributors"}
+    {name = "pqrun contributors"}
 ]
 keywords = ["postgresql", "queue", "job", "async", "fastapi", "background-tasks"]
 classifiers = [
@@ -24,6 +24,11 @@ classifiers = [
 dependencies = [
     "asyncpg>=0.29.0",
 ]
+
+[project.urls]
+Homepage = "https://changhyeon363.github.io/pqrun/"
+Repository = "https://github.com/changhyeon363/pqrun"
+Issues = "https://github.com/changhyeon363/pqrun/issues"
 
 [project.optional-dependencies]
 dev = [
@@ -44,7 +49,7 @@ build-backend = "setuptools.build_meta"
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
-pgjobq = ["ddl.sql", "py.typed"]
+pqrun = ["ddl.sql", "py.typed"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -14,7 +14,7 @@ import asyncpg
 
 from .models import Job, JobStatus
 
-logger = logging.getLogger("pgjobq.store")
+logger = logging.getLogger("pqrun.store")
 
 
 def _utcnow() -> datetime:

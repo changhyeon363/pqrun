@@ -124,7 +124,7 @@ async def handler(ctx: JobContext):
 #### 옵션 A: 라이브러리가 자체 logger 제공
 ```python
 import logging
-logger = logging.getLogger("pgjobq")
+logger = logging.getLogger("pqrun")
 
 # Worker에서:
 logger.info(f"Picked job {job.id} type={job.job_type}")

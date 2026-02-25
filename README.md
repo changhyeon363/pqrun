@@ -1,6 +1,6 @@
 <h1>
-  <img src="docs/assets/images/logo.png" alt="pgjobq logo" width="36" style="vertical-align: middle; margin-right: 8px;" />
-  pgjobq
+  <img src="https://raw.githubusercontent.com/changhyeon363/pqrun/main/docs/assets/images/logo.png" alt="pqrun logo" width="36" style="vertical-align: middle; margin-right: 8px;" />
+  pqrun
 </h1>
 
 **PostgreSQL-backed job queue for async Python.**
@@ -22,7 +22,7 @@ A simple, reliable job queue built on PostgreSQL for FastAPI and other async app
 ## Installation
 
 ```bash
-pip install pgjobq
+pip install pqrun
 ```
 
 **Requirements**:
@@ -37,7 +37,7 @@ pip install pgjobq
 ### 1. Apply Database Schema
 
 ```bash
-psql $DATABASE_URL < src/pgjobq/ddl.sql
+psql $DATABASE_URL < src/pqrun/ddl.sql
 ```
 
 Or in Python:
@@ -46,14 +46,14 @@ Or in Python:
 import asyncpg
 
 async with asyncpg.connect(dsn) as conn:
-    with open("src/pgjobq/ddl.sql") as f:
+    with open("src/pqrun/ddl.sql") as f:
         await conn.execute(f.read())
 ```
 
 ### 2. Define Handlers
 
 ```python
-from pgjobq import JobContext
+from pqrun import JobContext
 
 async def summarize_handler(ctx: JobContext) -> dict:
     conversation_id = ctx.job.payload["conversation_id"]
@@ -72,7 +72,7 @@ async def summarize_handler(ctx: JobContext) -> dict:
 
 ```python
 from fastapi import FastAPI
-from pgjobq import PgJobStore, Worker
+from pqrun import PgJobStore, Worker
 
 store = PgJobStore(dsn="postgresql://user:pass@host/db")
 
@@ -185,7 +185,7 @@ WORKER_STALE_TIMEOUT=1200
 
 ```python
 from datetime import timedelta
-from pgjobq import Worker, BackoffPolicy, IdlePollPolicy
+from pqrun import Worker, BackoffPolicy, IdlePollPolicy
 
 worker = Worker(
     store=store,
@@ -295,7 +295,7 @@ Current behavior:
 
 ```python
 from datetime import timedelta
-from pgjobq import BackoffPolicy, LoopErrorPolicy
+from pqrun import BackoffPolicy, LoopErrorPolicy
 
 class CustomBackoff(BackoffPolicy):
     def retry_delay(self, attempts: int) -> timedelta:
@@ -347,25 +347,25 @@ WHERE status = 'RUNNING'
 
 ### Logging
 
-pgjobq uses Python's standard `logging` module:
+pqrun uses Python's standard `logging` module:
 
 ```python
 import logging
 
 # Set log level
-logging.getLogger("pgjobq").setLevel(logging.INFO)
+logging.getLogger("pqrun").setLevel(logging.INFO)
 
 # Customize format
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-logging.getLogger("pgjobq").addHandler(handler)
+logging.getLogger("pqrun").addHandler(handler)
 ```
 
 ---
 
 ## Job Cleanup
 
-pgjobq does not automatically delete completed jobs. Implement cleanup based on your retention policy:
+pqrun does not automatically delete completed jobs. Implement cleanup based on your retention policy:
 
 ```sql
 -- Simple: Delete jobs older than 7 days
@@ -439,7 +439,7 @@ For detailed rationale, see [Design Document](docs/developer/design.md) and [Imp
 
 ## Comparison with Alternatives
 
-| Feature         | pgjobq       | Celery       | TaskIQ       | RQ           |
+| Feature         | pqrun       | Celery       | TaskIQ       | RQ           |
 |-----------------|--------------|--------------|--------------|--------------|
 | Backend         | PostgreSQL   | Redis/Rabbit | Redis/etc    | Redis        |
 | Async/Await     | ✅ Native    | ⚠️ Limited   | ✅ Native    | ❌           |
@@ -447,7 +447,7 @@ For detailed rationale, see [Design Document](docs/developer/design.md) and [Imp
 | Extra Infra     | ❌ None      | ✅ Required  | ✅ Required  | ✅ Required  |
 | Complexity      | Low          | High         | Medium       | Low          |
 
-**Choose pgjobq if**:
+**Choose pqrun if**:
 - You already use PostgreSQL
 - You want simplicity over complex features
 - You need native FastAPI async integration
@@ -463,8 +463,8 @@ Contributions are welcome! Please see [Design Document](docs/developer/design.md
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/pgjobq.git
-cd pgjobq
+git clone https://github.com/changhyeon363/pqrun.git
+cd pqrun
 
 # Install with dev dependencies
 pip install -e ".[dev]"
@@ -473,10 +473,10 @@ pip install -e ".[dev]"
 pytest
 
 # Type checking
-mypy src/pgjobq
+mypy src/pqrun
 
 # Linting
-ruff check src/pgjobq
+ruff check src/pqrun
 ```
 
 ---
@@ -510,8 +510,8 @@ zensical build
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/pgjobq/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/pgjobq/discussions)
+- **Issues**: [GitHub Issues](https://github.com/changhyeon363/pqrun/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/changhyeon363/pqrun/discussions)
 
 ---
 

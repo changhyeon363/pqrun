@@ -5,9 +5,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from pgjobq.backoff import IdlePollPolicy, LoopErrorPolicy
-from pgjobq.models import Job, JobStatus
-from pgjobq.worker import Worker
+from pqrun.backoff import IdlePollPolicy, LoopErrorPolicy
+from pqrun.models import Job, JobStatus
+from pqrun.worker import Worker
 
 
 class _StoreUnknownHandler:
