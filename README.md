@@ -1,4 +1,7 @@
-# pgjobq
+<h1>
+  <img src="docs/assets/images/logo.png" alt="pgjobq logo" width="36" style="vertical-align: middle; margin-right: 8px;" />
+  pgjobq
+</h1>
 
 **PostgreSQL-backed job queue for async Python.**
 

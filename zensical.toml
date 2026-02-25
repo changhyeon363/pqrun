@@ -73,6 +73,8 @@ Copyright &copy; 2026 Changhyeon Lee
 # Section for configuring theme options
 # ----------------------------------------------------------------------------
 [project.theme]
+favicon = "assets/images/favicon.png"
+logo = "assets/images/logo.png"
 
 # change this to "classic" to use the traditional Material for MkDocs look.
 #variant = "classic"
