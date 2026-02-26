@@ -1,0 +1,5 @@
+patterns = [
+  "docs/index.md",
+  "docs/user/*.md",
+  "docs/developer/*.md",
+]

@@ -1,0 +1,4 @@
+interface:
+  display_name: "pqrun Usage"
+  short_description: "Use pqrun safely with FastAPI and worker lifecycle"
+  default_prompt: "Use existing pqrun docs as source of truth, then implement or explain with minimal duplication."

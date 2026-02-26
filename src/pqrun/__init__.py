@@ -34,6 +34,7 @@ Basic Usage:
 
 from .backoff import BackoffPolicy, IdlePollPolicy, LoopErrorPolicy
 from .models import Handler, Handlers, Job, JobContext, JobStatus
+from .skill_installer import install_skill
 from .store_asyncpg import PgJobStore
 from .worker import Worker
 
@@ -53,4 +54,6 @@ __all__ = [
     "BackoffPolicy",
     "IdlePollPolicy",
     "LoopErrorPolicy",
+    # Utilities
+    "install_skill",
 ]

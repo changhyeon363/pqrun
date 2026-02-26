@@ -10,3 +10,8 @@
 
 - [ ] cocurrency 구현 방식
     현재: 이벤트 루프 1개, worker 1개, asyncio.Task로 병렬 처리
+
+- [ ] 중복 실행 관련 설명 추가
+    - dedupe_key
+    - db
+    - 외부

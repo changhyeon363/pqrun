@@ -388,6 +388,20 @@ See [examples/cleanup.sql](examples/cleanup.sql) for more patterns.
 - **[SQL Enqueue Patterns](examples/enqueue_patterns.sql)**: Batch enqueue, triggers, pg_cron
 - **[Cleanup Strategies](examples/cleanup.sql)**: Job retention and archival patterns
 
+### Install Agent Skill Template
+
+If `pqrun` is installed, you can fetch and install the skill from GitHub into another repository:
+
+```python
+from pqrun import install_skill
+
+install_skill("/path/to/target-repo")
+# optional:
+# install_skill("/path/to/target-repo", github_ref="v0.0.2")
+# install_skill("/path/to/target-repo", include_docs=False)
+# install_skill("/path/to/target-repo", force=False)  # keep existing and fail if already present
+```
+
 ---
 
 ## Architecture
