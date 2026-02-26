@@ -186,14 +186,18 @@ for t in tasks:
 #### 옵션 C: Hybrid shutdown (취소 + 제한 시간 대기)
 ```python
 stop_event.set()
-for t in tasks:
+# 1) 먼저 현재 실행 중인 job이 끝날 시간을 조금 준 뒤
+await asyncio.wait_for(asyncio.gather(*worker_tasks, return_exceptions=True), timeout=shutdown_grace_s)
+# 2) 그래도 안 끝나면 cancel로 강제 종료하고
+for t in remaining_tasks:
     t.cancel()
-await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=30.0)
+# 3) 전체 shutdown은 bounded timeout 내에서 마무리
+await asyncio.wait_for(asyncio.gather(*remaining_tasks, return_exceptions=True), timeout=shutdown_timeout_s)
 ```
 **장점**: 종료 지연을 제한하면서도 정리 시도 가능
 **단점**: 실행 중이던 job은 재시작 후 reaper 복구 필요
 
-**현재 구현**: **옵션 C**
+**현재 구현**: **옵션 C** (기본값: grace 10s, hard cap 30s)
 
 ---
 

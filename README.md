@@ -171,6 +171,9 @@ async def summarize_handler(ctx: JobContext) -> dict:
 # Enable/disable worker
 WORKER_ENABLED=true
 
+# Enable/disable reaper loop
+WORKER_REAPER_ENABLED=true
+
 # Concurrent jobs per worker instance
 WORKER_CONCURRENCY=1
 
@@ -193,6 +196,7 @@ worker = Worker(
 
     # Concurrency
     concurrency=1,  # Jobs running simultaneously
+    enable_reaper=True,  # Stale reaper loop on/off
 
     # Retry policy (defaults shown)
     backoff=BackoffPolicy(),  # 1m, 5m, 30m, 2h, 6h
@@ -241,7 +245,7 @@ WORKER_ENABLED=true WORKER_CONCURRENCY=4 python -m examples.worker_only
 No code changes needed—just environment variables!
 
 Current behavior:
-- On shutdown, worker loops are cancelled with a bounded wait (30s).
+- On shutdown, worker stops picking up new jobs and waits briefly for in-flight jobs, then cancels remaining tasks (bounded total wait: 30s by default).
 - Any interrupted RUNNING jobs are recovered by the reaper.
 
 ---

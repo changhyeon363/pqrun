@@ -259,7 +259,7 @@ WORKER_ENABLED=true WORKER_CONCURRENCY=4 python -m examples.worker_only
 ```
 
 Current behavior:
-- Shutdown uses bounded cancellation (30s wait) and reaper-based recovery for interrupted RUNNING jobs.
+- Shutdown stops new pickup and waits briefly for in-flight jobs, then cancels remaining tasks (bounded total wait: 30s by default) and uses reaper-based recovery for interrupted RUNNING jobs.
 
 ---
 

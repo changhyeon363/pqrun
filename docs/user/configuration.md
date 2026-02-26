@@ -10,6 +10,9 @@ icon: lucide/sliders-horizontal
 # Worker on/off
 WORKER_ENABLED=true
 
+# Reaper loop on/off
+WORKER_REAPER_ENABLED=true
+
 # Concurrent worker loops per process
 WORKER_CONCURRENCY=1
 
@@ -18,11 +21,18 @@ WORKER_REAP_INTERVAL=60
 
 # Default stale timeout (seconds)
 WORKER_STALE_TIMEOUT=1200
+
+# Shutdown behavior
+# - Gracefully wait for in-flight jobs up to this many seconds
+WORKER_SHUTDOWN_GRACE=10
+# - Hard cap for worker shutdown (seconds)
+WORKER_SHUTDOWN_TIMEOUT=30
 ```
 
 Notes:
 
 - 잘못된 값(예: `abc`)은 경고 후 기본값으로 fallback 됩니다.
+- `WORKER_REAPER_ENABLED=false`면 stale RUNNING 복구는 수행되지 않습니다.
 - `WORKER_STALE_TIMEOUT`은 job에 `timeout_seconds`가 없을 때만 적용됩니다.
 
 ## 2. Worker Constructor Options
@@ -36,11 +46,14 @@ worker = Worker(
     handlers=handlers,
     concurrency=1,
     enabled=True,
+    enable_reaper=True,
     backoff=BackoffPolicy(),
     idle_policy=IdlePollPolicy(base_seconds=1.0, max_seconds=10.0),
     loop_error_policy=LoopErrorPolicy(),
     reap_stale_every_seconds=60,
     default_stale_after=timedelta(minutes=20),
+    shutdown_grace=timedelta(seconds=10),
+    shutdown_timeout=timedelta(seconds=30),
     worker_id="custom-worker-id",
 )
 ```

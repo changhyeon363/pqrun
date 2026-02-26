@@ -51,6 +51,7 @@ class Worker:
     - backoff: Retry delay policy
     - reap_stale_every_seconds: How often to run stale job recovery
     - default_stale_after: Default timeout for jobs without timeout_seconds
+    - enable_reaper: Whether to run stale reaper loop (default: True)
     - worker_id: Unique worker identifier (default: hostname-pid)
     """
 
@@ -59,6 +60,7 @@ class Worker:
 
     concurrency: int = 1
     enabled: bool = True
+    enable_reaper: bool = True
 
     idle_policy: IdlePollPolicy = field(default_factory=IdlePollPolicy)
     backoff: BackoffPolicy = field(default_factory=BackoffPolicy)
@@ -66,6 +68,9 @@ class Worker:
 
     reap_stale_every_seconds: int = 60
     default_stale_after: timedelta = field(default_factory=lambda: timedelta(minutes=20))
+
+    shutdown_grace: timedelta = field(default_factory=lambda: timedelta(seconds=10))
+    shutdown_timeout: timedelta = field(default_factory=lambda: timedelta(seconds=30))
 
     worker_id: Optional[str] = None
 
@@ -79,6 +84,11 @@ class Worker:
         if env_enabled is not None:
             self.enabled = env_enabled.lower() in ("1", "true", "yes", "on")
             logger.info(f"WORKER_ENABLED={self.enabled} (from env)")
+
+        env_reaper_enabled = os.getenv("WORKER_REAPER_ENABLED")
+        if env_reaper_enabled is not None:
+            self.enable_reaper = env_reaper_enabled.lower() in ("1", "true", "yes", "on")
+            logger.info(f"WORKER_REAPER_ENABLED={self.enable_reaper} (from env)")
 
         env_conc = os.getenv("WORKER_CONCURRENCY")
         if env_conc is not None:
@@ -109,6 +119,32 @@ class Worker:
                     int(self.default_stale_after.total_seconds()),
                 )
 
+        env_shutdown_grace = os.getenv("WORKER_SHUTDOWN_GRACE")
+        if env_shutdown_grace is not None:
+            try:
+                grace_seconds = max(0, int(env_shutdown_grace))
+                self.shutdown_grace = timedelta(seconds=grace_seconds)
+                logger.info(f"WORKER_SHUTDOWN_GRACE={grace_seconds}s (from env)")
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Invalid WORKER_SHUTDOWN_GRACE=%r; using %ss",
+                    env_shutdown_grace,
+                    int(self.shutdown_grace.total_seconds()),
+                )
+
+        env_shutdown_timeout = os.getenv("WORKER_SHUTDOWN_TIMEOUT")
+        if env_shutdown_timeout is not None:
+            try:
+                timeout_seconds = max(1, int(env_shutdown_timeout))
+                self.shutdown_timeout = timedelta(seconds=timeout_seconds)
+                logger.info(f"WORKER_SHUTDOWN_TIMEOUT={timeout_seconds}s (from env)")
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Invalid WORKER_SHUTDOWN_TIMEOUT=%r; using %ss",
+                    env_shutdown_timeout,
+                    int(self.shutdown_timeout.total_seconds()),
+                )
+
     async def lifespan(self, app):
         """
         FastAPI lifespan context manager.
@@ -126,38 +162,88 @@ class Worker:
         await self.store.start()
 
         stop_event = asyncio.Event()
-        tasks: list[asyncio.Task] = []
+        worker_tasks: list[asyncio.Task] = []
+        reaper_task: asyncio.Task | None = None
 
         if self.enabled:
             # Spawn worker loops
             for i in range(self.concurrency):
                 task = asyncio.create_task(self._run_loop(stop_event), name=f"worker-{i}")
-                tasks.append(task)
+                worker_tasks.append(task)
 
-            # Spawn reaper loop
-            reaper_task = asyncio.create_task(self._reaper_loop(stop_event), name="reaper")
-            tasks.append(reaper_task)
-
-            logger.info(f"Started {self.concurrency} worker loops + 1 reaper")
+            if self.enable_reaper:
+                reaper_task = asyncio.create_task(self._reaper_loop(stop_event), name="reaper")
+                logger.info(f"Started {self.concurrency} worker loops + 1 reaper")
+            else:
+                logger.info(f"Started {self.concurrency} worker loops (reaper disabled)")
 
         try:
             yield
         finally:
-            logger.info("Worker shutting down...")
-            stop_event.set()
-
-            # Cancel all tasks
-            for t in tasks:
-                t.cancel()
-
-            # Wait for graceful shutdown (with timeout)
-            try:
-                await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=30.0)
-            except asyncio.TimeoutError:
-                logger.warning("Worker shutdown timed out after 30s")
+            await self._shutdown_tasks(stop_event=stop_event, worker_tasks=worker_tasks, reaper_task=reaper_task)
 
             await self.store.close()
             logger.info("Worker stopped")
+
+    async def _shutdown_tasks(
+        self,
+        *,
+        stop_event: asyncio.Event,
+        worker_tasks: list[asyncio.Task],
+        reaper_task: asyncio.Task | None,
+    ) -> None:
+        logger.info("Worker shutting down...")
+        stop_event.set()
+
+        shutdown_started = time.monotonic()
+        hard_timeout_s, grace_s = self._shutdown_timeouts_seconds()
+
+        if reaper_task is not None:
+            reaper_task.cancel()
+
+        if worker_tasks and grace_s > 0:
+            logger.info("Worker shutdown: waiting up to %.1fs for in-flight jobs to finish", grace_s)
+            grace_completed = await self._gather_with_timeout(tasks=worker_tasks, timeout_s=grace_s)
+            if not grace_completed:
+                logger.warning("Worker shutdown grace period elapsed; cancelling remaining tasks")
+
+        remaining_tasks = self._collect_remaining_tasks(worker_tasks=worker_tasks, reaper_task=reaper_task)
+        if not remaining_tasks:
+            return
+
+        for task in remaining_tasks:
+            task.cancel()
+
+        remaining_timeout_s = max(0.0, hard_timeout_s - (time.monotonic() - shutdown_started))
+        if remaining_timeout_s <= 0:
+            logger.warning("Worker shutdown timed out after %.1fs", hard_timeout_s)
+            return
+
+        hard_completed = await self._gather_with_timeout(tasks=remaining_tasks, timeout_s=remaining_timeout_s)
+        if not hard_completed:
+            logger.warning("Worker shutdown timed out after %.1fs", hard_timeout_s)
+
+    def _shutdown_timeouts_seconds(self) -> tuple[float, float]:
+        hard_timeout_s = float(self.shutdown_timeout.total_seconds())
+        grace_s = float(self.shutdown_grace.total_seconds())
+        return hard_timeout_s, max(0.0, min(grace_s, hard_timeout_s))
+
+    @staticmethod
+    def _collect_remaining_tasks(
+        *, worker_tasks: list[asyncio.Task], reaper_task: asyncio.Task | None
+    ) -> list[asyncio.Task]:
+        remaining_tasks = [task for task in worker_tasks if not task.done()]
+        if reaper_task is not None and not reaper_task.done():
+            remaining_tasks.append(reaper_task)
+        return remaining_tasks
+
+    @staticmethod
+    async def _gather_with_timeout(*, tasks: list[asyncio.Task], timeout_s: float) -> bool:
+        try:
+            await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=timeout_s)
+            return True
+        except asyncio.TimeoutError:
+            return False
 
     async def _reaper_loop(self, stop_event: asyncio.Event) -> None:
         """
